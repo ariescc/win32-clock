@@ -1,307 +1,401 @@
-#include <windows.h>
-#include <iostream>
-#include <math.h>
+// Clock.cpp : Defines the entry point for the application.
+// @author : x0r
 
-#include "clock.h"
+#include "stdafx.h"
+// #include "SoundPlayer.h"
+#include "Clock.h"
 
-LRESULT __stdcall WndProc(HWND, UINT, WPARAM, LPARAM);
-int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
+using namespace Gdiplus;
+#pragma comment (lib,"Gdiplus.lib")
+
+// Global Variables:
+HINSTANCE hInst;
+HWND hApp;
+// SoundPlayer *tick, *tock;
+TCHAR szTitle[] = TEXT("Clock");
+TCHAR szWindowClass[] = TEXT("[x0r-Cl0ck]");
+TCHAR buf[100];
+TCHAR szUserName[100];
+TCHAR* szWelcome[] = { TEXT("Good Morning"), TEXT("Good Afternoon"), TEXT("Good Evening"), TEXT("Good Night") };
+TCHAR* days[] = { TEXT("Sunday"), TEXT("Monday"), TEXT("Tuesday"), TEXT("Wednesday"), TEXT("Thursday"), TEXT("Friday"), TEXT("Saturday") };
+TCHAR* months[] = {
+	NULL, TEXT("January"), TEXT("February"), TEXT("March"), TEXT("April"), TEXT("May"), TEXT("June"),
+	TEXT("July"), TEXT("August"), TEXT("September"), TEXT("October"), TEXT("November"), TEXT("December")
+};
+
+// Forward declarations of functions included in this code module:
+int GetWelcomeMessage();
+ATOM MyRegisterClass(HINSTANCE hInstance);
+BOOL InitInstance(HINSTANCE, int);
+LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+void Line(HDC, int, int, int, int, int, int);
+
+int APIENTRY _tWinMain(HINSTANCE hInstance,
+	HINSTANCE hPrevInstance,
+	LPTSTR lpCmdLine,
+	int nCmdShow)
 {
-	char szWindowClass[] = "Clock";
+	UNREFERENCED_PARAMETER(hPrevInstance);
+	UNREFERENCED_PARAMETER(lpCmdLine);
 
-	// 注册窗口类
+	HWND hWin = FindWindow(TEXT("[x0r-Cl0ck]"), TEXT("Clock"));
+	if (hWin != NULL) {
+		SetForegroundWindow(hWin);
+		return 0;
+	}
+
+	// TODO: Place code here.
+	MSG msg;
+
+	// Initialize global strings
+	MyRegisterClass(hInstance);
+
+	// Perform application initialization:
+	if (!InitInstance(hInstance, nCmdShow)) {
+		return FALSE;
+	}
+
+	//tick = new SoundPlayer(IDR_TICK);
+	//tock = new SoundPlayer(IDR_TOCK);
+
+	DWORD dwSize = 100;
+	GetUserName(szUserName, &dwSize);
+	UpdateWindow(hApp);
+
+	HCURSOR hCur = LoadCursor(hInstance, MAKEINTRESOURCE(IDC_CURSOR3));
+	SetProp(hApp, TEXT("CURSOR-3"), hCur);
+
+	// Main message loop:
+	while (GetMessage(&msg, NULL, 0, 0)) {
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+	return (int)msg.wParam;
+}
+
+ATOM MyRegisterClass(HINSTANCE hInstance)
+{
 	WNDCLASSEX wcex;
 
+	GdiplusStartupInput gdiplusStartupInput;
+	ULONG_PTR           gdiplusToken;
+
+	// Initialize GDI+.
+	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
 	wcex.cbSize = sizeof(WNDCLASSEX);
-	wcex.style = CS_HREDRAW | CS_VREDRAW;
-	wcex.lpfnWndProc = (WNDPROC)WndProc;
+	wcex.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS | CS_DROPSHADOW;
+	wcex.lpfnWndProc = WndProc;
 	wcex.cbClsExtra = 0;
 	wcex.cbWndExtra = 0;
 	wcex.hInstance = hInstance;
-	wcex.hIcon = ::LoadIcon(hInstance, (LPCTSTR)IDI_MAIN);
-	wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wcex.hbrBackground = (HBRUSH)(COLOR_3DFACE + 1); // 此域可以是一个系统定义的颜色值
+	wcex.hIcon = NULL;
+	wcex.hCursor = NULL;
+	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 	wcex.lpszMenuName = NULL;
-	wcex.lpszClassName = (LPCWSTR)szWindowClass;
-	wcex.hIconSm = NULL;
+	wcex.lpszClassName = szWindowClass;
+	wcex.hIconSm = NULL; //LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
-	::RegisterClassEx(&wcex);
-
-
-	// 创建并显示主窗口
-	HWND hWnd = ::CreateWindowEx(NULL, (LPCWSTR)szWindowClass, (LPCWSTR)("时钟"),
-		WS_POPUP | WS_SYSMENU | WS_SIZEBOX, 100, 100, 300, 300, NULL, NULL, hInstance, NULL);
-	::ShowWindow(hWnd, nShowCmd);
-	::UpdateWindow(hWnd);
-
-	// 进入消息循环
-	MSG msg;
-	while (::GetMessage(&msg, NULL, 0, 0))
-	{
-		::TranslateMessage(&msg);
-		::DispatchMessage(&msg);
-	}
-
-	return 1;
-
+	return RegisterClassEx(&wcex);
 }
 
-const int IDM_HELP = 100;
-const int IDM_TOPMOST = 101;
-
-// 实现函数
-void SetIsotropic(HDC hdc, int cxClient, int cyClient);
-void DrawClockFace(HDC hdc);
-void DrawHand(HDC hdc, int nLength, int nWidth, int nDegrees, COLORREF clrColor);
-
-// 上一次Windows通知时的时间
-static int s_nPreHour;		// 小时	
-static int s_nPreMinute;	// 分钟
-static int s_nPreSecond;	// 秒
-							// 窗口客户区的大小
-
-static int s_Hour;
-static int s_Minute;
-static int s_Second;
-
-static int s_cxClient;
-static int s_cyClient;
-// 是否位于最顶层
-static BOOL s_bTopMost;
-
-LRESULT __stdcall WndProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam)
+BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-	switch (nMsg)
-	{
-	case WM_CREATE:
-	{
-		// 向系统菜单中添加自定义的项
-		HMENU hSysMenu;
-		hSysMenu = ::GetSystemMenu(hWnd, FALSE);
-		::AppendMenu(hSysMenu, MF_SEPARATOR, 0, NULL);
-		::AppendMenu(hSysMenu, MF_STRING, IDM_TOPMOST, (LPCWSTR)("总在最前"));
-		::AppendMenu(hSysMenu, MF_STRING, IDM_HELP, (LPCWSTR)("帮助"));
+	hInst = hInstance;
 
-		// 设置时间
-		SYSTEMTIME time;
-		::GetLocalTime(&time);
-		
-		s_Hour = time.wHour;
-		s_Minute = time.wMinute;
-		s_Second = time.wSecond;
-		s_nPreHour = time.wHour % 12;
-		s_nPreMinute = time.wMinute;
-		s_nPreSecond = time.wSecond;
+	int width = GetSystemMetrics(SM_CXSCREEN), height = GetSystemMetrics(SM_CYSCREEN);
 
-		// 创建定时器
-		::SetTimer(hWnd, IDT_CLOCK, 1000, NULL);
-		return 0;
+	hApp = CreateWindowEx(WS_EX_TOOLWINDOW | WS_EX_LAYERED, szWindowClass, szTitle, 0, width / 2 - 200, height / 2 - 200, 400, 400, NULL, NULL, hInstance, NULL);
+
+	int dwFlags = WS_BORDER | WS_VISIBLE | WS_SIZEBOX;
+
+	SetWindowLong(hApp, GWL_STYLE, dwFlags);
+	SetWindowPos(hApp, NULL, width - 420, 20, 400, 400, SWP_FRAMECHANGED);
+
+	if (!hApp) {
+		return FALSE;
 	}
-	case WM_SIZE:
-	{
-		s_cxClient = LOWORD(lParam);
-		s_cyClient = HIWORD(lParam);
-		return 0;
-	}
-	case WM_PAINT:
-	{
-		PAINTSTRUCT ps;
-		HDC hdc = ::BeginPaint(hWnd, &ps);
 
-		// 设置坐标系
-		SetIsotropic(hdc, s_cxClient, s_cyClient);
+	return TRUE;
+}
 
-		// 绘制时钟外观
-		DrawClockFace(hdc);
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	int radius, sy, sx;
+	UINT uState;
+	static POINT del;
+	static LONG pStyle;
+	PAINTSTRUCT ps;
+	HDC hdc;
+	HGDIOBJ obj;
+	static HMENU hMenu;
+	static BOOL bSound = FALSE;
+	static BOOL fMoving = FALSE;
+	static BOOL fCircle = FALSE;
+	static BOOL bTopmost = FALSE;
+	static BOOL fResized = FALSE;
+	RECT r;
 
-		// 绘制指针
+	switch (message) {
+	case WM_COMMAND: {
+		switch (LOWORD(wParam)) {
+		case IDM_QUIT:
+			DestroyWindow(hApp);
+			break;
+		case IDM_SOUND:
+			bSound = ~bSound;
+			break;
+		case IDM_CIRCLE: {
+			fCircle = ~fCircle;
+			if (fCircle) {
+				SetWindowLong(hApp, GWL_STYLE, WS_BORDER | WS_VISIBLE);
+				GetWindowRect(hApp, &r);
+				DWORD dwDiam = min(WIDTH(r), HEIGHT(r));
+				HRGN hEll = CreateEllipticRgn(0, 0, dwDiam, dwDiam);
+				SetWindowRgn(hWnd, hEll, TRUE);
+				SetWindowPos(hWnd, NULL, r.left, r.top, dwDiam, dwDiam, SWP_FRAMECHANGED);
+			}
+			else {
+				SetWindowLong(hApp, GWL_STYLE, WS_BORDER | WS_VISIBLE | WS_SIZEBOX);
+				GetWindowRect(hApp, &r);
+				HRGN hEll = CreateRectRgn(0, 0, r.right - r.left, r.bottom - r.top);
+				SetWindowRgn(hWnd, hEll, TRUE);
+				SetWindowPos(hWnd, NULL, r.left, r.top, WIDTH(r), HEIGHT(r), SWP_FRAMECHANGED);
+				InvalidateRect(hApp, NULL, TRUE);
+			}
+		} break;
+		case IDM_TOPMOST: {
+			GetWindowRect(hApp, &r);
+			bTopmost = ~bTopmost;
+			SetWindowPos(hWnd, bTopmost ? HWND_TOPMOST : HWND_NOTOPMOST, r.left, r.top, WIDTH(r), HEIGHT(r), SWP_FRAMECHANGED);
+		} break;
+		}
+	} break;
+	case WM_CREATE: {
+		SetLayeredWindowAttributes(hWnd, 0x00ffffff, OPACITY, LWA_ALPHA);
+		SetTimer(hWnd, 1, 1000, NULL);
+	} break;
+	case WM_LBUTTONDOWN: {
+		SetCapture(hApp);
+		GetCursorPos(&del);
+		ScreenToClient(hApp, &del);
+		pStyle = GetWindowLong(hApp, GWL_EXSTYLE);
+	} break;
+	case WM_LBUTTONUP:
+		if (GetCapture() == hApp) {
+			SetLayeredWindowAttributes(hApp, 0x00ffffff, OPACITY - FACTOR, LWA_ALPHA);
+			del.x = del.y = 0;
+			fMoving = FALSE;
+			SetWindowLong(hApp, GWL_EXSTYLE, pStyle);
+			SetLayeredWindowAttributes(hApp, 0x00ffffff, OPACITY, LWA_ALPHA);
+			SetCursor(LoadCursor(NULL, IDC_ARROW));
+			ReleaseCapture();
+		}
+		break;
+	case WM_MOUSEMOVE:
+		if (wParam & MK_LBUTTON) {
+			RECT r;
+			SetLayeredWindowAttributes(hApp, 0x00ffffff, OPACITY - FACTOR, LWA_ALPHA);
+			HCURSOR hCur = (HCURSOR)GetProp(hApp, TEXT("CURSOR-3"));
+			if (GetCursor() != hCur) {
+				SetCursor(hCur);
+			}
+			fMoving = TRUE;
+			GetWindowRect(hWnd, &r);
+			POINT pt = { 0 };
+			GetCursorPos(&pt);
+			MoveWindow(hWnd, pt.x - del.x, pt.y - del.y, r.right - r.left, r.bottom - r.top, TRUE);
+		}
+		break;
+	case WM_RBUTTONUP: {
+		hMenu = CreatePopupMenu();
+		AppendMenu(hMenu, MF_STRING | MF_CHECKED, IDM_CIRCLE, TEXT("&Circle Clock"));
+		CheckMenuItem(hMenu, IDM_CIRCLE, fCircle);
+		AppendMenu(hMenu, MF_SEPARATOR, 0, 0);
+		AppendMenu(hMenu, MF_STRING | MF_CHECKED, IDM_SOUND, TEXT("Enable &Sound"));
+		CheckMenuItem(hMenu, IDM_SOUND, bSound);
+		AppendMenu(hMenu, MF_SEPARATOR, 0, 0);
+		AppendMenu(hMenu, MF_STRING | MF_CHECKED, IDM_TOPMOST, TEXT("&Always On Top"));
+		CheckMenuItem(hMenu, IDM_TOPMOST, bTopmost);
+		AppendMenu(hMenu, MF_SEPARATOR, 0, 0);
+		AppendMenu(hMenu, MF_STRING, IDM_QUIT, TEXT("E&xit"));
+		POINT pt = { LOWORD(lParam), HIWORD(lParam) };
+		ClientToScreen(hWnd, &pt);
+		TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hWnd, NULL);
+	} break;
+	case WM_PAINT: {
+		SYSTEMTIME sysTime;
+		GetLocalTime(&sysTime);
 
-		// 经过1个小时时针走30度（360/12），经过1分钟时针走0.5度（30/60）
-		DrawHand(hdc, 200, 8, s_nPreHour * 30 + s_nPreMinute / 2, RGB(0, 0, 0));
-		// 经过1分钟分针走6度（360/60）
-		DrawHand(hdc, 400, 6, s_nPreMinute * 6, RGB(0, 0, 0));
-		// 经过1秒钟秒针走6度（360/60）
-		DrawHand(hdc, 400, 1, s_nPreSecond * 6, RGB(0, 0, 0));
+		hdc = BeginPaint(hWnd, &ps);
+		SetBkMode(hdc, TRANSPARENT);
 
-		char str[100] = "";
-		sprintf(str, "%.2d:%.2d:%.2d", s_Hour, s_Minute, s_Second);
-		::TextOut(hdc, 30, 50, (WCHAR*)str, strlen(str));
+		// ... set mapping mode ...
 
-		::EndPaint(hWnd, &ps);
-		return 0;
-	}
+		GetClientRect(hWnd, &r);
+		SetMapMode(hdc, MM_ISOTROPIC);
+		SetViewportOrgEx(hdc, WIDTH(r) / 2, HEIGHT(r) / 2, NULL);
+		SetWindowExtEx(hdc, WIDTH(r) / 2, -HEIGHT(r) / 2, NULL);
+		SetViewportExtEx(hdc, WIDTH(r) / 2, HEIGHT(r) / 2, NULL);
+
+		LOGFONT lf;
+		ZeroMemory(&lf, sizeof lf);
+		lf.lfHeight = min(WIDTH(r), HEIGHT(r)) >> 4;
+		_tcscpy(lf.lfFaceName, TEXT("Comic Sans MS"));
+		SelectObject(hdc, CreateFontIndirect(&lf));
+
+		// ... display time ...
+
+		SIZE tz;
+		ZeroMemory(buf, sizeof buf);
+		_stprintf(buf, TEXT("%02i:%02i:%02i"), sysTime.wHour, sysTime.wMinute, sysTime.wSecond);
+		SIZE_T len = _tcslen(buf);
+		GetTextExtentPoint32(hdc, buf, len, &tz);
+		TextOut(hdc, -tz.cx / 2, min(WIDTH(r), HEIGHT(r)) / 4, buf, len);
+
+		ZeroMemory(buf, sizeof buf);
+		if (HEIGHT(r) >= 300 && WIDTH(r) >= 300) {
+			_stprintf(buf, TEXT("Hii %s, %s !"), szUserName, szWelcome[GetWelcomeMessage()]);
+		}
+		else {
+			_stprintf(buf, TEXT("Hii %s"), szUserName);
+		}
+		len = _tcslen(buf);
+		GetTextExtentPoint32(hdc, buf, len, &tz);
+		TextOut(hdc, -tz.cx / 2, min(WIDTH(r), HEIGHT(r)) / 8, buf, len);
+		// ... display day ...
+
+		ZeroMemory(buf, sizeof buf);
+		if (HEIGHT(r) < 300 || WIDTH(r) < 300) {
+			_stprintf(buf, TEXT("%.3s"), days[sysTime.wDayOfWeek]);
+		}
+		else {
+			_tcscpy(buf, days[sysTime.wDayOfWeek]);
+		}
+		len = lstrlen(buf);
+		GetTextExtentPoint32(hdc, buf, len, &tz);
+		TextOut(hdc, -tz.cx / 2, -min(WIDTH(r), HEIGHT(r)) / 4, buf, len);
+
+		// ... display date ...
+
+		RtlZeroMemory(buf, sizeof buf);
+		if (HEIGHT(r) < 300 || WIDTH(r) < 300) {
+			_stprintf(buf, TEXT("%02d-%.3s-%d"), sysTime.wDay, months[sysTime.wMonth], sysTime.wYear);
+		}
+		else {
+			_stprintf(buf, TEXT("%s %02d, %d"), months[sysTime.wMonth], sysTime.wDay, sysTime.wYear);
+		}
+		len = _tcsclen(buf);
+		GetTextExtentPoint32(hdc, buf, len, &tz);
+		TextOut(hdc, -tz.cx / 2, -min(WIDTH(r), HEIGHT(r)) / 8, buf, len);
+
+		// draw points ...
+
+		radius = min(WIDTH(r) / 2, HEIGHT(r) / 2) - 10;
+		for (int theta = 6; theta <= 360; theta += 6) {
+			sx = (int)radius * sin(theta * RADIAN);
+			sy = (int)radius * cos(theta * RADIAN);
+			if (theta % 30 == 0) {
+				Ellipse(hdc, sx - 2 * POINT_DIAMETER, sy - 2 * POINT_DIAMETER, sx + 2 * POINT_DIAMETER, sy + 2 * POINT_DIAMETER);
+				//if (theta % 45 == 0) {
+				RtlZeroMemory(buf, sizeof buf);
+				_stprintf(buf, TEXT("%i"), theta / 30);
+				SIZE txtW;
+				GetTextExtentPoint32(hdc, buf, _tcsclen(buf), &txtW);
+				SetTextAlign(hdc, TA_BASELINE | TA_CENTER);
+				sx = (int)(radius - 25) * sin(theta * RADIAN);
+				sy = (int)(radius - 25) * cos(theta * RADIAN);
+				TextOut(hdc, sx - txtW.cx / 2, sy - txtW.cy / 2, buf, _tcsclen(buf));
+				//}
+			}
+			else {
+				obj = SelectObject(hdc, GetStockObject(BLACK_BRUSH));
+				Ellipse(hdc, sx - POINT_DIAMETER, sy - POINT_DIAMETER, sx + POINT_DIAMETER, sy + POINT_DIAMETER);
+				DeleteObject(GetStockObject(BLACK_BRUSH));
+			}
+		}
+		DeleteObject(GetStockObject(SYSTEM_FIXED_FONT));
+
+		POINT pMin, pSec, pHour;
+		radius -= 4 * POINT_DIAMETER;
+		pSec.y = (LONG)radius * cos(sysTime.wSecond * 6 * RADIAN);
+		pSec.x = (LONG)radius * sin(sysTime.wSecond * 6 * RADIAN);
+		radius -= 6 * POINT_DIAMETER;
+		pMin.y = (LONG)radius * cos(sysTime.wMinute * 6 * RADIAN);
+		pMin.x = (LONG)radius * sin(sysTime.wMinute * 6 * RADIAN);
+		radius -= 8 * POINT_DIAMETER;
+		pHour.y = (LONG)radius * cos(sysTime.wHour * 30 * RADIAN);
+		pHour.x = (LONG)radius * sin(sysTime.wHour * 30 * RADIAN);
+
+		// ... draw hands ...
+
+		Line(hdc, 0, 0, pHour.x, pHour.y, 0xff0cbcf8, HOUR_WIDTH);
+		Line(hdc, 0, 0, pMin.x, pMin.y, 0xff3ec182, MINUTE_WIDTH);
+		Line(hdc, 0, 0, pSec.x, pSec.y, 0xfff78636, SECOND_WIDTH);
+
+		obj = SelectObject(hdc, GetStockObject(BLACK_BRUSH));
+		Ellipse(hdc, -POINT_DIAMETER * 2, -POINT_DIAMETER * 2, POINT_DIAMETER * 2, POINT_DIAMETER * 2);
+		DeleteObject(GetStockObject(BLACK_BRUSH));
+
+		SelectObject(hdc, obj);
+
+		EndPaint(hWnd, &ps);
+	} break;
+
 	case WM_TIMER:
-	{
-		// 如果窗口处于最小化状态就什么也不做
-		if (::IsIconic(hWnd))	// IsIconic函数用来判断窗口是否处于最小化状态
-			return 0;
+		InvalidateRect(hWnd, NULL, TRUE);
+		break;
 
-		// 取得系统时间
-		SYSTEMTIME time;
-		::GetLocalTime(&time);
-
-		// 建立坐标系
-		HDC hdc = ::GetDC(hWnd);
-		SetIsotropic(hdc, s_cxClient, s_cyClient);
-
-		// 以COLOR_3DFACE为背景色就可以擦除指针了（因为窗口的背景色也是COLOR_3DFACE）
-		COLORREF crfColor = ::GetSysColor(COLOR_3DFACE);
-
-		// 如果分钟改变的话就擦除时针和分针
-		if (time.wMinute != s_nPreMinute)
-		{
-			// 擦除时针和分针
-			DrawHand(hdc, 200, 8, s_nPreHour * 30 + s_nPreMinute / 2, crfColor);
-			DrawHand(hdc, 400, 6, s_nPreMinute * 6, crfColor);
-			s_nPreHour = time.wHour;
-			s_nPreMinute = time.wMinute;
-			s_Hour = time.wHour;
-			s_Minute = time.wMinute;
+	case WM_SIZE: {
+		if (~fCircle && fResized) {
+			SetWindowLong(hApp, GWL_STYLE, WS_BORDER | WS_VISIBLE | WS_SIZEBOX);
+			GetWindowRect(hApp, &r);
+			HRGN hEll = CreateRectRgn(0, 0, r.right - r.left, r.bottom - r.top);
+			SetWindowRgn(hWnd, hEll, TRUE);
+			SetWindowPos(hWnd, NULL, r.left, r.top, WIDTH(r), HEIGHT(r), SWP_FRAMECHANGED);
 		}
+		InvalidateRect(hApp, NULL, TRUE);
+		fResized = TRUE;
+	} break;
 
-		// 如果秒改变的话就擦除秒针，然后重画所有指针
-		if (time.wSecond != s_nPreSecond)
-		{
-			// 擦除秒针
-			DrawHand(hdc, 400, 1, s_nPreSecond * 6, crfColor);
-
-			// 重画所有指针
-			DrawHand(hdc, 400, 1, time.wSecond * 6, RGB(0, 0, 0));
-			DrawHand(hdc, 200, 8, time.wHour * 30 + time.wMinute / 2, RGB(0, 0, 0));
-			DrawHand(hdc, 400, 6, time.wMinute * 6, RGB(0, 0, 0));
-			s_nPreSecond = time.wSecond;
-			s_Second = time.wSecond;
-		}
-		return 0;
-	}
-	case WM_CONTEXTMENU:
-		POINT pt; pt.x = LOWORD(lParam); pt.y = HIWORD(lParam);
-		{
-			// 取得系统菜单的句柄
-			HMENU hSysMenu = ::GetSystemMenu(hWnd, FALSE);
-
-			// 弹出系统菜单
-			int nID = ::TrackPopupMenu(hSysMenu, TPM_LEFTALIGN | TPM_RETURNCMD,
-				pt.x, pt.y, 0, hWnd, NULL);
-			if (nID > 0)
-				::SendMessage(hWnd, WM_SYSCOMMAND, nID, 0);
-			return 0;
-		}
-	case WM_CLOSE:
-	{
-		::KillTimer(hWnd, IDT_CLOCK);
-		::DestroyWindow(hWnd);
-		return 0;
-	}
 	case WM_DESTROY:
-	{
-		::PostQuitMessage(0);
+		KillTimer(hWnd, 1);
+		PostMessage(hWnd, WM_QUIT, 0, 0);
+		break;
+
+	default:
+		return DefWindowProc(hWnd, message, wParam, lParam);
+	}
+	return 0;
+}
+
+void Line(HDC hDC, int sx, int sy, int ex, int ey, int clr, int w)
+{
+	////int width = 20;
+	//int dx = 0;
+	// POINT pt[] = { sx, sy, ex, ey, ex - dx, ey - dx, ex + dx, ey + dx, ex, ey, sx, sy };
+	// Polyline(hdc, pt, 6);
+	Graphics g(hDC);
+	g.SetSmoothingMode(SmoothingMode::SmoothingModeAntiAlias);
+	Pen p(Color(clr), w);
+	p.SetEndCap(LineCap::LineCapArrowAnchor);
+	g.DrawLine(&p, sx, sy, ex, ey);
+}
+
+int GetWelcomeMessage()
+{
+	SYSTEMTIME time;
+	GetLocalTime(&time);
+	if (time.wHour >= 4 && time.wHour < 12) {
 		return 0;
 	}
-	case WM_NCHITTEST:
-	{
-		UINT nHitTest;
-		nHitTest = ::DefWindowProc(hWnd, WM_NCHITTEST, wParam, lParam);
-		if (nHitTest == HTCLIENT &&
-			::GetAsyncKeyState(MK_LBUTTON) < 0) // 如果鼠标左键按下，GetAsyncKeyState函数的返回值小于0
-			nHitTest = HTCAPTION;
-		return nHitTest;
+	else if (time.wHour >= 12 && time.wHour < 16) {
+		return 1;
 	}
-	case WM_SYSCOMMAND:
-		int nID = wParam;
-		{
-			if (nID == IDM_HELP)
-			{
-				::MessageBox(hWnd, (LPCWSTR)("一个时钟的例子"), (LPCWSTR)("时钟"), 0);
-			}
-			else if (nID == IDM_TOPMOST)
-			{
-				HMENU hSysMenu = ::GetSystemMenu(hWnd, FALSE);
-				if (s_bTopMost)
-				{
-					::CheckMenuItem(hSysMenu, IDM_TOPMOST, MF_UNCHECKED);
-					::SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0,
-						SWP_NOMOVE | SWP_NOREDRAW | SWP_NOSIZE);
-					s_bTopMost = FALSE;
-				}
-				else
-				{
-					::CheckMenuItem(hSysMenu, IDM_TOPMOST, MF_CHECKED);
-					::SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0,
-						SWP_NOMOVE | SWP_NOREDRAW | SWP_NOSIZE);
-					s_bTopMost = TRUE;
-				}
-			}
-			return ::DefWindowProc(hWnd, WM_SYSCOMMAND, nID, 0);
-		}
+	else if (time.wHour >= 16 && time.wHour < 20) {
+		return 2;
 	}
-
-	return ::DefWindowProc(hWnd, nMsg, wParam, lParam);
-}
-
-
-
-
-void SetIsotropic(HDC hdc, int cx, int cy)
-{
-	::SetMapMode(hdc, MM_ISOTROPIC);
-	::SetWindowExtEx(hdc, 1000, 1000, NULL);
-	::SetViewportExtEx(hdc, cx, -cy, NULL);
-	::SetViewportOrgEx(hdc, cx / 2, cy / 2, NULL);
-}
-
-// 绘制时钟的外观
-void DrawClockFace(HDC hdc)
-{
-	const int SQUARESIZE = 20;
-	static POINT pt[] =
-	{
-		0, 450,		// 12点
-		225, 390,	// 1点
-		390, 225,	// 2点
-		450, 0,		// 3点
-		390, -225,	//... 下面的坐标是上面的点的对称点（以X轴、Y轴或原点对称）
-		225, -390,
-		0, -450,
-		-225, -390,
-		-390, -225,
-		-450, 0,
-		-390, 225,
-		-225, 390
-	};
-
-	// 选择一个黑色的画刷
-	::SelectObject(hdc, ::GetStockObject(BLACK_BRUSH));
-
-	// 画12个圆
-	for (int i = 0; i<12; i++)
-	{
-		::Ellipse(hdc, pt[i].x - SQUARESIZE, pt[i].y + SQUARESIZE,
-			pt[i].x + SQUARESIZE, pt[i].y - SQUARESIZE);
+	else {
+		return 3;
 	}
-}
-
-// 指针的长度、宽度、相对于0点偏移的角度、颜色分别由参数nLength、nWidth、nDegrees、clrColor指定
-void DrawHand(HDC hdc, int nLength, int nWidth, int nDegrees, COLORREF clrColor)
-{
-	// 将角度nDegrees转化成弧度 .	2*3.1415926/360 == 0.0174533
-	double nRadians = (double)nDegrees*0.0174533;
-
-	// 计算坐标
-	POINT pt[2];
-	pt[0].x = (int)(nLength*sin(nRadians));
-	pt[0].y = (int)(nLength*cos(nRadians));
-	pt[1].x = -pt[0].x / 5;
-	pt[1].y = -pt[0].y / 5;
-
-	// 创建画笔，并选如DC结构中
-	HPEN hPen = ::CreatePen(PS_SOLID, nWidth, clrColor);
-	HPEN hOldPen = (HPEN)::SelectObject(hdc, hPen);
-
-	// 画线
-	::MoveToEx(hdc, pt[0].x, pt[0].y, NULL);
-	::LineTo(hdc, pt[1].x, pt[1].y);
-
-	::SelectObject(hdc, hOldPen);
-	::DeleteObject(hPen);
 }
