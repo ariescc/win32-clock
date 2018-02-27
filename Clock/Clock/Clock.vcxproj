@@ -18,6 +18,20 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="clock.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="clock.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="stdafx.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="cursor1.cur" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{2C44E2CE-E4F6-420C-9D3D-0519ACB69BC9}</ProjectGuid>
@@ -138,19 +152,6 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="clock.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="clock.h" />
-    <ClInclude Include="resource.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="Resource.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="C:\Users\AAA\Desktop\Green Dollar.ico" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

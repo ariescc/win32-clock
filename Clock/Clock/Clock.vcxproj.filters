@@ -20,10 +20,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="resource.h">
+    <ClInclude Include="stdafx.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="clock.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -33,8 +36,8 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="C:\Users\AAA\Desktop\Green Dollar.ico">
+    <None Include="cursor1.cur">
       <Filter>资源文件</Filter>
-    </Image>
+    </None>
   </ItemGroup>
 </Project>
